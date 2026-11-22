@@ -18,8 +18,6 @@ python scripts\run_paper.py
 
 The run fits the rolling HQR, HQR-W, and QRA models; calculates ACI, WACI, and DCP intervals; runs the synthetic experiment and sigma sensitivity analysis; and writes the paper tables and figures. The complete model fits, 1,000-replicate metric bootstrap, and 2,000-point sigma sweep can take several hours.
 
-DCP uses a pooled calibration window: observations from all hours in the 180 days before each target date are used to calibrate intervals for that date. The quantile regressions are fitted on the preceding 180-day training window, also pooled across hours.
-
 Generated tables are written to `results/`. The consolidated `results/paper_metrics.csv` contains one row for each alpha and model, with all nine reported metrics as columns, so the numerical results can be compared directly with the manuscript. Bootstrap samples and standard errors are also saved separately. Generated figures are written to `figures/`.
 
 ## Data
