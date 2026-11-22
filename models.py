@@ -387,6 +387,91 @@ def WidthAdaptiveConformalInference_2(first_idx, df, alpha, gamma, rate, method,
 
     return preds_waci_inf, preds_waci_sup
 
+def dcp_opt(Y0, X0, Y1, X1, Y_test, X_test, taus, alpha_sig):
+    """
+    Perform Distributional Conformal Prediction with Optimization (DCP-OPT).
+
+    This function computes prediction intervals for a test dataset using quantile regression
+    and an optimization-based approach to minimize the length of the intervals while maintaining
+    the desired coverage level.
+
+    Args:
+        Y0 (numpy.ndarray): Response variable for the training set used to fit quantile regression models.
+        X0 (numpy.ndarray): Predictor variables for the training set used to fit quantile regression models.
+        Y1 (numpy.ndarray): Response variable for the holdout set used to compute conformal scores.
+        X1 (numpy.ndarray): Predictor variables for the holdout set used to compute conformal scores.
+        Y_test (numpy.ndarray): Response variable for the test set (used for evaluation).
+        X_test (numpy.ndarray): Predictor variables for the test set (used to compute prediction intervals).
+        taus (numpy.ndarray): Array of quantile levels used for quantile regression.
+        alpha_sig (float): Significance level (e.g., 0.1 for a 90% prediction interval).
+
+    Returns:
+        tuple:
+            - UB (numpy.ndarray): Upper bounds of the prediction intervals for the test set.
+            - LB (numpy.ndarray): Lower bounds of the prediction intervals for the test set.
+            - cov_opt (numpy.ndarray): Boolean array indicating whether each test point is covered by the prediction interval.
+            - leng_opt (numpy.ndarray): Lengths of the prediction intervals for the test set.
+
+    Steps:
+        1. Fit quantile regression models for each quantile level in `taus` using the training data `(Y0, X0)`.
+        2. Compute the predicted quantiles for the combined holdout and test sets `(X1, X_test)`.
+        3. Estimate the conformal scores (`cs_opt`) based on the difference between the predicted quantiles and the observed values.
+        4. Determine a threshold for the conformal scores to ensure the desired coverage level.
+        5. Compute the prediction intervals (lower and upper bounds) for the test set based on the threshold.
+
+    Notes:
+        - The function uses quantile regression to model the conditional distribution of the response variable.
+        - The optimization step minimizes the length of the prediction intervals while maintaining the desired coverage.
+    """
+    XXX = np.vstack((X1, X_test))
+    YYY = np.concatenate((Y1, Y_test))
+
+    beta_qr = np.empty((X0.shape[1] + 1, len(taus)))
+    for t, tau in enumerate(taus):
+        model = sm.QuantReg(Y0, sm.add_constant(X0))
+        res = model.fit(q=tau)
+        beta_qr[:, t] = res.params
+
+    tQ_yx = sm.add_constant(XXX) @ beta_qr
+    Q_yx = np.sort(tQ_yx, axis=1)
+    u_hat = np.mean(Q_yx <= YYY[:, None], axis=1)
+
+    bhat = np.empty(len(YYY))
+    b_grid = taus[taus <= alpha_sig]
+    for t in range(len(YYY)):
+        leng = np.empty(len(b_grid))
+        for b, b_val in enumerate(b_grid):
+            Q_yx_u = np.interp(b_val + 1 - alpha_sig, taus, Q_yx[t, :])
+            leng[b] = Q_yx_u - Q_yx[t, b]
+        bhat[t] = b_grid[np.argmin(leng)]
+
+    ind_test = np.arange(len(Y1), len(YYY))
+    cs_opt = np.abs(u_hat - bhat - (1 - alpha_sig) / 2)
+
+    k = int(np.ceil((1 - alpha_sig) * (1 + len(Y1))))
+    threshold = np.sort(cs_opt[:len(Y1)])[k]
+
+    cov_opt = cs_opt[ind_test] <= threshold
+
+    leng_opt = []
+    UB = []
+    LB = []
+    
+    for t in ind_test:
+        ci_grid = np.abs(taus - bhat[t] - (1 - alpha_sig) / 2)
+        ci = Q_yx[t, ci_grid <= threshold]
+        ub = np.max(ci)
+        lb = np.min(ci)
+        
+        leng_opt.append(ub - lb)
+        UB.append(ub)
+        LB.append(lb)
+
+    leng_opt = np.array(leng_opt)
+    leng_opt[leng_opt == -np.inf] = np.nan
+
+    return UB, LB, cov_opt, leng_opt
+
 
 
 

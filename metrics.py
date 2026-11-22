@@ -9,7 +9,7 @@ from scipy import stats
 #     "font.family": "serif"
 # })
 
-plt.style.use('seaborn-white')
+# plt.style.use('seaborn-white')
 params = {"ytick.color" : "black",
           "xtick.color" : "black",
           "axes.labelcolor" : "black",
@@ -21,9 +21,9 @@ plt.rcParams.update(params)
 colors = sns.color_palette("colorblind")
 
 
-color_by_method_dict = {'hqr': colors[0], 'qra': colors[1], 'cqr_hqr': colors[2], 'aci_hqr': colors[4], 'waci_hqr': colors[7]}
-label_by_method_dict = {'hqr': 'HQR', 'qra': 'QRA', 'cqr_hqr': 'CQR-HQR', 'aci_hqr': 'ACI-HQR', 'waci_hqr': 'WACI-HQR'}
-marker_by_method_dict = {'hqr': 'o', 'qra': 's', 'cqr_hqr': 'D', 'aci_hqr': '^', 'waci_hqr': 'v'}
+color_by_method_dict = {'hqr': colors[0], 'qra': colors[1], 'cqr_hqr': colors[2], 'aci_hqr': colors[4], 'waci_hqr': colors[7], 'dcp_hqr': colors[3], 'dcp_hqr_w': colors[5], 'dcp_qra': colors[6]}
+label_by_method_dict = {'hqr': 'HQR', 'qra': 'QRA', 'cqr_hqr': 'CQR-HQR', 'aci_hqr': 'ACI-HQR', 'waci_hqr': 'WACI-HQR', 'dcp_hqr': 'DCP-HQR'}
+marker_by_method_dict = {'hqr': 'o', 'qra': 's', 'cqr_hqr': 'D', 'aci_hqr': '^', 'waci_hqr': 'v', 'dcp_hqr': 'X'}
 
 def winkler_score(y_true, upper_pred, lower_pred, alpha):
     lower_diff = lower_pred - y_true
@@ -80,13 +80,13 @@ def HSIC(y_true, upper_pred, lower_pred, s_coverage=1, s_length=1):
 def ILS_coverage(df, model, pct_threshold=90, alpha=0.2):
     if model == 'hqr' or model == 'qra' or model == 'hqr_w' or model == 'hqr_by_hour' or model == 'qra_by_hour' or model == 'hqr_w_by_hour':
         return np.nan
-    elif model == 'cqr_hqr' or model == 'aci_hqr' or model == 'waci_hqr' or "hqr" in model or model == 'cqr_hqr_by_hour' or model == 'aci_hqr_by_hour' or model == 'waci_hqr_by_hour':
+    elif model == 'cqr_hqr' or model == 'aci_hqr' or model == 'waci_hqr' or model == 'dcp_hqr' or "hqr" in model or model == 'cqr_hqr_by_hour' or model == 'aci_hqr_by_hour' or model == 'waci_hqr_by_hour':
         base_model = 'hqr'
         interval_lengths_base_model = df[f'preds_sup_{base_model}'] - df[f'preds_inf_{base_model}']
-    elif model == 'cqr_qra' or model == 'aci_qra' or model == 'waci_qra' or model == 'cqr_qra_by_hour' or model == 'aci_qra_by_hour' or model == 'waci_qra_by_hour':
+    elif model == 'cqr_qra' or model == 'aci_qra' or model == 'waci_qra' or model == 'dcp_qra' or model == 'cqr_qra_by_hour' or model == 'aci_qra_by_hour' or model == 'waci_qra_by_hour':
         base_model = 'qra'
         interval_lengths_base_model = df[f'preds_sup_{base_model}'] - df[f'preds_inf_{base_model}']
-    elif model == 'cqr_hqr_w' or model == 'aci_hqr_w' or model == 'waci_hqr_w' or model == 'cqr_hqr_w_by_hour' or model == 'aci_hqr_w_by_hour' or model == 'waci_hqr_w_by_hour':
+    elif model == 'cqr_hqr_w' or model == 'aci_hqr_w' or model == 'waci_hqr_w' or model == 'dcp_hqr_w' or model == 'cqr_hqr_w_by_hour' or model == 'aci_hqr_w_by_hour' or model == 'waci_hqr_w_by_hour':
         base_model = 'hqr_w'
         interval_lengths_base_model = df[f'preds_sup_{base_model}'] - df[f'preds_inf_{base_model}']
     else:
@@ -99,6 +99,9 @@ def ILS_coverage(df, model, pct_threshold=90, alpha=0.2):
     threshold_diff_lengths = np.quantile((lengths - interval_lengths_base_model).abs(), pct_threshold/100)
 
     df_ils = df[(lengths - interval_lengths_base_model).abs() > threshold_diff_lengths]
+    # df['apply_ils_' + model] = 0
+    # df.loc[df.index.isin(df_ils.index), 'apply_ils_' + model] = 1
+    # df.to_csv(f"Results//df_ils_{model}_pct_threshold_{pct_threshold}_alpha_{alpha}.csv", index=False)
     coverage_ils = empirical_coverage(df_ils['real'], df_ils[f'preds_sup_{model}'], df_ils[f'preds_inf_{model}'])
     ils_diff = np.abs(coverage_ils - (1-alpha)*100)
 
@@ -180,7 +183,7 @@ def coverage_by_interval_length_plot(df, models, alpha, quantile_step, bar_width
     plt.tight_layout()
     plt.savefig(f"Results//coverage_by_interval_length_alpha_{alpha}_quantile_step_{quantile_step}.pdf", bbox_inches='tight', format='pdf')
 
-def error_by_interval_length_plot(df, models, quantile_step, alpha, bar_width = 0.1):
+def error_by_interval_length_plot(df, models, quantile_step, alpha):
     df['error_abs'] = (df['real'] - df['mean_pred']).abs()
     for model in models:
         df['length_' + model] = df[f'preds_sup_{model}'] - df[f'preds_inf_{model}']
@@ -188,7 +191,7 @@ def error_by_interval_length_plot(df, models, quantile_step, alpha, bar_width = 
     dict_abs_error = {model: [] for model in models}
     labels = []
     for i_quantile in range(len(dict_lengths[models[0]])-1):
-        labels.append(str((round(np.arange(0, 1.01, quantile_step)[i_quantile], 2), round(np.arange(0, 1.01, quantile_step)[i_quantile+1], 2))))
+        labels.append(f"({round(np.arange(0, 1.01, quantile_step)[i_quantile], 2)}, {round(np.arange(0, 1.01, quantile_step)[i_quantile+1], 2)})")        
         for model in models:
             length_min_model, length_max_model = dict_lengths[model][i_quantile], dict_lengths[model][i_quantile+1]
             df_aux_model = df[(df[f'length_{model}'] >= length_min_model) & (df[f'length_{model}'] <= length_max_model)]
@@ -211,6 +214,23 @@ def error_by_interval_length_plot(df, models, quantile_step, alpha, bar_width = 
     ax.set_ylabel("MAE", fontsize=13)
     plt.tight_layout()
     plt.savefig(f"Results//error_by_interval_length_alpha_{alpha}.pdf", bbox_inches='tight', format='pdf')
+
+def error_by_interval_length_plot_2(df, alpha):
+    df['error_abs'] = (df['real'] - df['mean_pred']).abs()
+    for model in ['aci_hqr', 'waci_hqr']:
+        df['length_' + model] = df[f'preds_sup_{model}'] - df[f'preds_inf_{model}']
+
+    fig, ax = plt.subplots(1, 2, figsize=(10, 4))
+    ax[0].scatter(df[f'length_aci_hqr'], df['error_abs'], label=label_by_method_dict['aci_hqr'], color=colors[0], alpha=0.5)
+    ax[1].scatter(df[f'length_waci_hqr'], df['error_abs'], label=label_by_method_dict['waci_hqr'], color=colors[1], alpha=0.5)
+    ax[0].grid()
+    ax[1].grid()
+    ax[0].set_xlabel("Interval Length")
+    ax[1].set_xlabel("Interval Length")
+    ax[0].set_ylabel("MAE")
+    ax[1].set_ylabel("MAE")
+    plt.tight_layout()
+    plt.savefig(f"Results//error_by_interval_length_alpha_{alpha}_scatter.pdf", bbox_inches='tight', format='pdf')
 
 def interval_length_distribution_plot(df, models, quantile_step, alpha):
     for model in models:

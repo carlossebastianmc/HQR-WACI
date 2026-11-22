@@ -10,6 +10,8 @@ import seaborn as sns
 from tqdm import tqdm
 from matplotlib.gridspec import GridSpec
 from matplotlib.colors import LinearSegmentedColormap
+from matplotlib.lines import Line2D
+import os
 
 
 
@@ -20,7 +22,7 @@ from matplotlib.colors import LinearSegmentedColormap
 # colors = list(mcolors.TABLEAU_COLORS.values())
 
 # Estilo de los gráficos tipo LaTex
-plt.style.use('seaborn-white')
+# plt.style.use('seaborn-white')
 params = {"ytick.color" : "black",
           "xtick.color" : "black",
           "axes.labelcolor" : "black",
@@ -307,6 +309,9 @@ colors_by_model = {
     'waci_hqr': colors[0],
     'waci_hqr_w': colors[1],
     'waci_qra': colors[2],
+    'dcp_hqr': colors[0],
+    'dcp_hqr_w': colors[1],
+    'dcp_qra': colors[2],
 }
 
 labels_by_model = {
@@ -319,6 +324,9 @@ labels_by_model = {
     'waci_hqr': 'WACI-HQR',
     'waci_hqr_w': 'WACI-HQR-W',
     'waci_qra': 'WACI-QRA',
+    'dcp_hqr': 'DCP-HQR',
+    'dcp_hqr_w': 'DCP-HQR-W',
+    'dcp_qra': 'DCP-QRA',
 }
 
 markers_by_model = {
@@ -331,7 +339,10 @@ markers_by_model = {
     'waci_hqr': '^',
     'waci_hqr_w': '^',
     'waci_qra': '^',
-}
+    'dcp_hqr': 'X',
+    'dcp_hqr_w': 'X',
+    'dcp_qra': 'X'
+    }
 
 def generate_average_interval_length_vs_mean_empirical_coverage_plot():
     d = dirname(abspath(__file__))
@@ -342,7 +353,7 @@ def generate_average_interval_length_vs_mean_empirical_coverage_plot():
         df = pd.read_csv(d + f"\\Results\\df_results_alpha_{alpha}.csv", index_col=0)
         obj_coverage = 100*(1 - alpha)
 
-        df = df.loc[['hqr', 'hqr_w', 'qra', 'aci_hqr', 'aci_hqr_w', 'aci_qra', 'waci_hqr', 'waci_hqr_w', 'waci_qra']]
+        df = df.loc[['hqr', 'hqr_w', 'qra', 'aci_hqr', 'aci_hqr_w', 'aci_qra', 'waci_hqr', 'waci_hqr_w', 'waci_qra', 'dcp_hqr', 'dcp_hqr_w', 'dcp_qra']]
 
         # df_base_models = df.loc[['hqr', 'hqr_w', 'qra']]
         # df_aci_models = df.loc[['aci_hqr', 'aci_hqr_w', 'aci_qra']]
@@ -382,23 +393,25 @@ def generate_marginal_coverage_vs_conditional_coverage():
 
     fig, ax = plt.subplots(1, 2, figsize=(10, 4))
 
-    ax[0].scatter(X, y_true, alpha=0.9, zorder=2)
-    ax[0].fill_between(X, y_lower_marginal, y_upper_marginal, alpha=0.5, zorder=1)
+    ax[0].scatter(X, y_true, alpha=0.9, zorder=2, label='Data')
+    ax[0].fill_between(X, y_lower_marginal, y_upper_marginal, alpha=0.5, zorder=1, label='Prediction interval')
     ax[0].set_title("Marginal coverage", fontsize=16)
     ax[0].set_xlabel("X", fontsize=13)
     ax[0].set_ylabel("Y", fontsize=13)
     ax[0].grid()
     ax[0].tick_params(axis='x', labelsize=12)
     ax[0].tick_params(axis='y', labelsize=12)
+    ax[0].legend(frameon=True)
 
-    ax[1].scatter(X, y_true, alpha=0.9, zorder=2)
-    ax[1].fill_between(X, y_pred_lower, y_pred_upper, alpha=0.5, zorder=1)
+    ax[1].scatter(X, y_true, alpha=0.9, zorder=2, label='Data')
+    ax[1].fill_between(X, y_pred_lower, y_pred_upper, alpha=0.5, zorder=1, label='Prediction interval')
     ax[1].set_title("Conditional coverage", fontsize=16)
     ax[1].set_xlabel("X", fontsize=13)
     ax[1].set_ylabel("Y", fontsize=13)
     ax[1].grid()
     ax[1].tick_params(axis='x', labelsize=12)
     ax[1].tick_params(axis='y', labelsize=12)
+    ax[1].legend(frameon=True)
 
     plt.tight_layout()
     plt.savefig("Images\\marginal_vs_conditional_coverage.pdf", format='pdf', bbox_inches='tight')
@@ -542,6 +555,110 @@ def generate_average_interval_length_vs_mean_empirical_coverage_plot_sigma_impac
     plt.savefig(d + "\\Images\\sigma_impact.pdf", format='pdf', bbox_inches='tight')
     # plt.show()
 
+def generate_significance_results():
+    d = dirname(abspath(__file__))
+    axis_names = ['HQR', 'HQR-W', 'QRA', 'ACI HQR', 'ACI HQR-W', 'ACI QRA', 'WACI HQR', 'WACI HQR-W', 'WACI QRA', 'DCP HQR', 'DCP HQR-W', 'DCP QRA']
+
+    metric_specs = [
+        ('empirical_coverage', 'Empirical coverage', 0, 0),
+        ('average_length', 'Average length', 0, 1),
+        ('winkler_score', 'Winkler score', 0, 2),
+        ('interval_length_std', 'Interval length std', 1, 0),
+        ('spearman_correlation', 'Spearman correlation', 1, 1),
+        ('mean_deviation_coverage_by_interval_length', 'MCD 5', 2, 0),
+        ('pearson_correlation', 'Pearson correlation', 2, 1),
+        ('ILS_10_coverage', 'ILS 10', 2, 2),
+    ]
+    
+    group_colors = {
+        'HQR': colors[0],
+        'HQR-W': colors[1],
+        'QRA': colors[2]
+    }
+
+    model_group = []
+    for name in axis_names:
+        if 'HQR-W' in name:
+            model_group.append('HQR-W')
+        elif 'QRA' in name:
+            model_group.append('QRA')
+        else:
+            model_group.append('HQR')
+
+    grouped_models = {
+        'Base': ['HQR', 'HQR-W', 'QRA'],
+        'ACI': ['ACI HQR', 'ACI HQR-W', 'ACI QRA'],
+        'WACI': ['WACI HQR', 'WACI HQR-W', 'WACI QRA'],
+        'DCP': ['DCP HQR', 'DCP HQR-W', 'DCP QRA']
+    }
+
+    x_positions = {}
+    group_centers = []
+    group_boundaries = []
+    current_x = 0
+    intra_group_step = 1
+    inter_group_gap = 1
+
+    for group_name, models in grouped_models.items():
+        start_x = current_x
+        for model in models:
+            x_positions[model] = current_x
+            current_x += intra_group_step
+        end_x = current_x - intra_group_step
+        group_centers.append((start_x + end_x) / 2)
+        group_boundaries.append(end_x + (inter_group_gap / 2))
+        current_x += inter_group_gap
+    
+    for alpha in [0.1, 0.2]:
+        # df_results = pd.read_csv(d + f"\\Results\\df_results_alpha_{alpha}.csv", index_col=0)
+        fig, ax = plt.subplots(3, 3, figsize=(12, 9))
+
+        for metric_name, metric_title, row, col in metric_specs:
+            file = f"df_{metric_name}_alpha_{alpha}.csv"
+            df_metrics = pd.read_csv(d + f"\\Results\\{file}", index_col=0)
+            # df_metrics_mean = df_results[metric_name]
+            df_metrics_mean = df_metrics.mean(axis=0)
+            df_metrics_mean.index = axis_names
+            df_metrics_std = df_metrics.std(axis=0)
+            df_metrics_std.index = axis_names
+            n = df_metrics.shape[0]
+            df_intervals = 1.96 * df_metrics_std / np.sqrt(n)
+
+            for j, model in enumerate(df_metrics_mean.index):
+                color = group_colors[model_group[j]]
+                ax[row, col].errorbar(x_positions[model], df_metrics_mean.loc[model], fmt='o', yerr=df_intervals.loc[model], color=color, zorder=2, markersize=5, capsize=5, elinewidth=2)
+
+            for models in grouped_models.values():
+                xs = [x_positions[m] for m in models if m in df_metrics_mean.index]
+                ys = [df_metrics_mean[m] for m in models if m in df_metrics_mean.index]
+                if len(xs) > 1:
+                    ax[row, col].plot(xs, ys, linestyle='--', color='grey', alpha=0.7, zorder=1)
+
+            for boundary in group_boundaries[:-1]:
+                ax[row, col].axvline(boundary, color='grey', linestyle='-', lw=1, alpha=0.35, zorder=1)
+
+            ax[row, col].set_title(metric_title)
+            ax[row, col].set_xticks(group_centers)
+            ax[row, col].set_xticklabels(list(grouped_models.keys()), fontsize=8)
+            ax[row, col].tick_params(axis='y', labelsize=8)
+            ax[row, col].grid(zorder=0)
+
+        ax[1, 2].set_xticks([])
+        ax[1, 2].set_yticks([])
+        for spine in ax[1, 2].spines.values():
+            spine.set_visible(False)
+
+        legend_handles = [
+            Line2D([0], [0], marker='o', color='none', markerfacecolor=colors[0], markeredgecolor=colors[0], markersize=7, label='HQR'),
+            Line2D([0], [0], marker='o', color='none', markerfacecolor=colors[1], markeredgecolor=colors[1], markersize=7, label='HQR-W'),
+            Line2D([0], [0], marker='o', color='none', markerfacecolor=colors[2], markeredgecolor=colors[2], markersize=7, label='QRA'),
+        ]
+        fig.legend(handles=legend_handles, loc='upper center', ncol=3, frameon=True, bbox_to_anchor=(0.5, 1.02))
+
+        # plt.suptitle(f"$\\alpha = {alpha}$", fontsize=16)
+        plt.tight_layout(rect=[0, 0, 1, 0.96])
+        plt.savefig(d + f"\\Images\\significance_results_alpha_{alpha}.pdf", format='pdf', bbox_inches='tight')
+
 # generate_day_ahead_market_figure()
 # generate_day_ahead_market_predictions()
 # generate_progression_alphas(hour=13)
@@ -549,7 +666,8 @@ def generate_average_interval_length_vs_mean_empirical_coverage_plot_sigma_impac
 # generate_coefs_models_qra()
 # generate_progression_alphas_2(hour=13)
 # generate_marginal_coverage_vs_conditional_coverage()
-generate_average_interval_length_vs_mean_empirical_coverage_plot()
+# generate_average_interval_length_vs_mean_empirical_coverage_plot()
 # generate_progression_alphas_square()
 # generate_average_interval_length_vs_mean_empirical_coverage_plot_sigma_impact()
+generate_significance_results()
 
